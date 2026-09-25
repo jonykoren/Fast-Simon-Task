@@ -8,16 +8,24 @@ from google.cloud import datastore
 
 app = FastAPI(title="Fast Simon Simple Database")
 
-client = datastore.Client()
+_client: datastore.Client | None = None
 KIND = "AppState"
 KEY_NAME = "state"
 
 DEFAULT_STATE = {"variables": {}, "value_counts": {}, "undo_stack": [], "redo_stack": []}
 
 
+def get_client() -> datastore.Client:
+    global _client
+    if _client is None:
+        _client = datastore.Client()
+    return _client
+
+
 @contextmanager
 def transactional_state():
     """Load state, yield it for mutation, save it back — all inside one Datastore transaction."""
+    client = get_client()
     key = client.key(KIND, KEY_NAME)
     with client.transaction():
         entity = client.get(key)
@@ -122,6 +130,7 @@ def redo():
 
 @app.get("/end", response_class=PlainTextResponse)
 def end():
+    client = get_client()
     key = client.key(KIND, KEY_NAME)
     with client.transaction():
         client.delete(key)
