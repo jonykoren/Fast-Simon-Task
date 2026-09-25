@@ -3,10 +3,27 @@ from contextlib import contextmanager
 from typing import Optional
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import PlainTextResponse
 from google.cloud import datastore
 
 app = FastAPI(title="Fast Simon Simple Database")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    missing = [
+        str(err["loc"][-1])
+        for err in exc.errors()
+        if err["type"] in ("missing", "value_error")
+    ]
+    if missing:
+        return PlainTextResponse(
+            f"Error: missing or invalid parameter(s): {', '.join(missing)}",
+            status_code=400,
+        )
+    return PlainTextResponse("Error: invalid request.", status_code=400)
+
 
 _client: datastore.Client | None = None
 KIND = "AppState"
