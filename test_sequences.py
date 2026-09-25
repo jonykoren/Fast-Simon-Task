@@ -3,7 +3,8 @@ Verifies the app against the exact example sequences from the spec.
 Run against a live deployment: python test_sequences.py [BASE_URL]
 """
 import sys
-import requests
+import urllib.error
+import urllib.request
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080"
 
@@ -11,10 +12,18 @@ passed = 0
 failed = 0
 
 
+def _get(path: str) -> tuple[int, str]:
+    """Returns (status_code, body_text)."""
+    try:
+        with urllib.request.urlopen(f"{BASE}{path}") as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+
 def check(description: str, url: str, expected: str) -> None:
     global passed, failed
-    resp = requests.get(f"{BASE}{url}")
-    actual = resp.text
+    _, actual = _get(url)
     ok = actual == expected
     status = "PASS" if ok else "FAIL"
     print(f"[{status}] {description}: {url} -> expected {expected!r}, got {actual!r}")
@@ -68,10 +77,9 @@ def sequence_3() -> None:
 def graceful_input_handling() -> None:
     global passed, failed
     print("\n=== Graceful handling of unexpected input ===")
-    resp = requests.get(f"{BASE}/set?name=x")
-    ok = resp.status_code == 400
-    status = "PASS" if ok else "FAIL"
-    print(f"[{status}] missing 'value' param -> expected 400, got {resp.status_code}")
+    status, _ = _get("/set?name=x")
+    ok = status == 400
+    print(f"[{'PASS' if ok else 'FAIL'}] missing 'value' param -> expected 400, got {status}")
     if ok:
         passed += 1
     else:
@@ -84,8 +92,7 @@ if __name__ == "__main__":
     sequence_3()
     graceful_input_handling()
 
-    # Always leave the datastore clean, regardless of outcome
-    requests.get(f"{BASE}/end")
+    _get("/end")  # always leave the datastore clean
 
     print(f"\n{'=' * 40}")
     print(f"TOTAL: {passed} passed, {failed} failed")

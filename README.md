@@ -212,7 +212,7 @@ gcloud app deploy
 
 ## Known limitations & future improvements
 
-- **Automated verification** — [`test_sequences.py`](test_sequences.py) runs all three example sequences from the spec end-to-end against a live deployment and asserts every response matches exactly. Run with: `python test_sequences.py <BASE_URL>`
+- **Automated verification** — [`test_sequences.py`](test_sequences.py) runs all three example sequences from the spec end-to-end against a live deployment and asserts every response matches exactly. Uses only the Python standard library (no extra dependencies). Run with: `python test_sequences.py <BASE_URL>`
 - **Input validation** — missing or malformed query parameters return a plain-text `400` error (via a custom `RequestValidationError` handler), consistent with the rest of the API's plain-text responses.
 - **CI smoke test is basic** — it only confirms the app imports correctly, not that the command sequences behave correctly. A next step would be running the example sequences as part of CI before deploying.
 - Possible additions if this were a long-lived service: rate limiting, authentication, structured per-command logging.
