@@ -154,6 +154,12 @@ You can paste any of these directly into a browser, prefixed with the live URL, 
 
 ---
 
+## Interactive API explorer
+
+FastAPI auto-generates a Swagger UI at [`/docs`](https://fast-simon-task-2026.ey.r.appspot.com/docs) — you can try every endpoint directly from the browser without `curl`.
+
+---
+
 ## Project structure
 ```
 fast-simon-task/

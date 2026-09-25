@@ -74,7 +74,7 @@ def hello_world():
     return "Hello, World!"
 
 
-@app.get("/set", response_class=PlainTextResponse)
+@app.get("/set", response_class=PlainTextResponse, summary="Set a variable")
 def set_var(name: str, value: str):
     with transactional_state() as state:
         old = state["variables"].get(name)
@@ -86,14 +86,14 @@ def set_var(name: str, value: str):
     return f"{name} = {value}"
 
 
-@app.get("/get", response_class=PlainTextResponse)
+@app.get("/get", response_class=PlainTextResponse, summary="Get a variable's value")
 def get_var(name: str):
     with transactional_state() as state:
         value = state["variables"].get(name)
     return value if value is not None else "None"
 
 
-@app.get("/unset", response_class=PlainTextResponse)
+@app.get("/unset", response_class=PlainTextResponse, summary="Unset a variable")
 def unset_var(name: str):
     with transactional_state() as state:
         old = state["variables"].get(name)
@@ -104,14 +104,14 @@ def unset_var(name: str):
     return f"{name} = None"
 
 
-@app.get("/numequalto", response_class=PlainTextResponse)
+@app.get("/numequalto", response_class=PlainTextResponse, summary="Count variables equal to a value")
 def numequalto(value: str):
     with transactional_state() as state:
         count = state["value_counts"].get(value, 0)
     return str(count)
 
 
-@app.get("/undo", response_class=PlainTextResponse)
+@app.get("/undo", response_class=PlainTextResponse, summary="Undo the last SET/UNSET")
 def undo():
     with transactional_state() as state:
         if not state["undo_stack"]:
@@ -128,7 +128,7 @@ def undo():
     return f"{name} = {old if old is not None else 'None'}"
 
 
-@app.get("/redo", response_class=PlainTextResponse)
+@app.get("/redo", response_class=PlainTextResponse, summary="Redo the last undone command")
 def redo():
     with transactional_state() as state:
         if not state["redo_stack"]:
@@ -145,7 +145,7 @@ def redo():
     return f"{name} = {new if new is not None else 'None'}"
 
 
-@app.get("/end", response_class=PlainTextResponse)
+@app.get("/end", response_class=PlainTextResponse, summary="Clear all data")
 def end():
     client = get_client()
     key = client.key(KIND, KEY_NAME)
