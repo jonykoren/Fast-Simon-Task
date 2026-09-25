@@ -1,48 +1,128 @@
-import math
+import json
+from contextlib import contextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
+from google.cloud import datastore
 
-app = FastAPI(title="Fast Simon Assessment API")
+app = FastAPI(title="Fast Simon Simple Database")
 
+client = datastore.Client()
+KIND = "AppState"
+KEY_NAME = "state"
 
-class Product(BaseModel):
-    id: int
-    name: str
-    category: str
-    price: float
-
-
-PRODUCTS: list[Product] = [
-    Product(id=1, name="Running Shoes", category="shoes", price=120.0),
-    Product(id=2, name="Cotton T-Shirt", category="apparel", price=25.0),
-    Product(id=3, name="Leather Belt", category="accessories", price=45.0),
-    Product(id=4, name="Winter Jacket", category="apparel", price=150.0),
-]
+DEFAULT_STATE = {"variables": {}, "value_counts": {}, "undo_stack": [], "redo_stack": []}
 
 
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
+@contextmanager
+def transactional_state():
+    """Load state, yield it for mutation, save it back — all inside one Datastore transaction."""
+    key = client.key(KIND, KEY_NAME)
+    with client.transaction():
+        entity = client.get(key)
+        state = json.loads(entity["state_json"]) if entity else json.loads(json.dumps(DEFAULT_STATE))
+        yield state
+        new_entity = datastore.Entity(key=key, exclude_from_indexes=("state_json",))
+        new_entity["state_json"] = json.dumps(state)
+        client.put(new_entity)
 
 
-@app.get("/api/products")
-def get_products(
-    category: Optional[str] = None,
-    max_price: Optional[float] = Query(default=None),
-):
-    results = PRODUCTS
+def _inc(state: dict, value: Optional[str]) -> None:
+    if value is None:
+        return
+    state["value_counts"][value] = state["value_counts"].get(value, 0) + 1
 
-    if category:
-        results = [p for p in results if p.category == category.lower()]
 
-    if max_price is not None:
-        if not math.isfinite(max_price) or max_price < 0:
-            raise HTTPException(
-                status_code=400,
-                detail="max_price must be a non-negative number.",
-            )
-        results = [p for p in results if p.price <= max_price]
+def _dec(state: dict, value: Optional[str]) -> None:
+    if value is None:
+        return
+    counts = state["value_counts"]
+    if value in counts:
+        counts[value] -= 1
+        if counts[value] <= 0:
+            del counts[value]
 
-    return {"count": len(results), "data": results}
+
+@app.get("/", response_class=PlainTextResponse)
+def hello_world():
+    return "Hello, World!"
+
+
+@app.get("/set", response_class=PlainTextResponse)
+def set_var(name: str, value: str):
+    with transactional_state() as state:
+        old = state["variables"].get(name)
+        _dec(state, old)
+        state["variables"][name] = value
+        _inc(state, value)
+        state["undo_stack"].append({"name": name, "old": old, "new": value})
+        state["redo_stack"] = []
+    return f"{name} = {value}"
+
+
+@app.get("/get", response_class=PlainTextResponse)
+def get_var(name: str):
+    with transactional_state() as state:
+        value = state["variables"].get(name)
+    return value if value is not None else "None"
+
+
+@app.get("/unset", response_class=PlainTextResponse)
+def unset_var(name: str):
+    with transactional_state() as state:
+        old = state["variables"].get(name)
+        _dec(state, old)
+        state["variables"].pop(name, None)
+        state["undo_stack"].append({"name": name, "old": old, "new": None})
+        state["redo_stack"] = []
+    return f"{name} = None"
+
+
+@app.get("/numequalto", response_class=PlainTextResponse)
+def numequalto(value: str):
+    with transactional_state() as state:
+        count = state["value_counts"].get(value, 0)
+    return str(count)
+
+
+@app.get("/undo", response_class=PlainTextResponse)
+def undo():
+    with transactional_state() as state:
+        if not state["undo_stack"]:
+            return "NO COMMANDS"
+        action = state["undo_stack"].pop()
+        name, old, new = action["name"], action["old"], action["new"]
+        _dec(state, new)
+        if old is None:
+            state["variables"].pop(name, None)
+        else:
+            state["variables"][name] = old
+        _inc(state, old)
+        state["redo_stack"].append(action)
+    return f"{name} = {old if old is not None else 'None'}"
+
+
+@app.get("/redo", response_class=PlainTextResponse)
+def redo():
+    with transactional_state() as state:
+        if not state["redo_stack"]:
+            return "NO COMMANDS"
+        action = state["redo_stack"].pop()
+        name, old, new = action["name"], action["old"], action["new"]
+        _dec(state, old)
+        if new is None:
+            state["variables"].pop(name, None)
+        else:
+            state["variables"][name] = new
+        _inc(state, new)
+        state["undo_stack"].append(action)
+    return f"{name} = {new if new is not None else 'None'}"
+
+
+@app.get("/end", response_class=PlainTextResponse)
+def end():
+    key = client.key(KIND, KEY_NAME)
+    with client.transaction():
+        client.delete(key)
+    return "CLEANED"
