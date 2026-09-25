@@ -164,6 +164,7 @@ FastAPI auto-generates a Swagger UI at [`/docs`](https://fast-simon-task-2026.ey
 ```
 fast-simon-task/
 ├── main.py # the FastAPI app — all 8 endpoints + Datastore logic
+├── test_sequences.py # end-to-end checks for all spec example sequences
 ├── app.yaml # App Engine config (runtime, scaling, startup command)
 ├── requirements.txt # Python dependencies (pinned versions)
 ├── README.md # this file
@@ -211,7 +212,7 @@ gcloud app deploy
 
 ## Known limitations & future improvements
 
-- **No automated tests yet** — all sequences from the spec were verified manually with `curl` against both local and production. Adding `pytest` coverage for all example sequences would be the next step.
+- **Automated verification** — [`test_sequences.py`](test_sequences.py) runs all three example sequences from the spec end-to-end against a live deployment and asserts every response matches exactly. Run with: `python test_sequences.py <BASE_URL>`
 - **Input validation** — missing or malformed query parameters return a plain-text `400` error (via a custom `RequestValidationError` handler), consistent with the rest of the API's plain-text responses.
 - **CI smoke test is basic** — it only confirms the app imports correctly, not that the command sequences behave correctly. A next step would be running the example sequences as part of CI before deploying.
 - Possible additions if this were a long-lived service: rate limiting, authentication, structured per-command logging.
