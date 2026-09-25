@@ -112,7 +112,7 @@ Re-applies the most recently undone command. Repeated calls redo further forward
 ---
 
 #### `GET /end`
-Deletes **all** stored data — every variable and the full undo/redo history. This is always the last command sent in a session.
+Deletes **all** stored data — every variable and the full undo/redo history. It queries every `AppState` entity in Datastore and deletes them, so nothing is left behind. This is always the last command sent in a session.
 
 | Example request | Response |
 |---|---|
@@ -148,7 +148,7 @@ You can paste any of these directly into a browser, prefixed with the live URL, 
 
 ### Extra feature — Transactional consistency
 
-**What it is:** every single command (`SET`, `GET`, `UNSET`, `NUMEQUALTO`, `UNDO`, `REDO`, `END`) runs inside one Datastore transaction: read the current state → apply the change → write the new state back, atomically.
+**What it is:** every state command (`SET`, `GET`, `UNSET`, `NUMEQUALTO`, `UNDO`, `REDO`) runs inside one Datastore transaction: read the current state → apply the change → write the new state back, atomically. (`END` is a teardown command — it deletes every `AppState` entity outright.)
 
 **Why it matters:** the spec says it's fine to ignore multi-client issues, but since *all* commands touch the same single entity, this was a small, essentially free addition. Without it, two requests arriving at almost the same moment could each read the old state, make their own change, and the second write would silently erase the first ("lost update"). With the transaction, Datastore detects the conflict and automatically retries one of them — so no update is ever silently lost, at no extra cost in code complexity.
 

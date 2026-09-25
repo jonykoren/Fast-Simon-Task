@@ -148,7 +148,9 @@ def redo():
 @app.get("/end", response_class=PlainTextResponse, summary="Clear all data")
 def end():
     client = get_client()
-    key = client.key(KIND, KEY_NAME)
-    with client.transaction():
-        client.delete(key)
+    query = client.query(kind=KIND)
+    query.keys_only()
+    keys = [entity.key for entity in query.fetch()]
+    if keys:
+        client.delete_multi(keys)
     return "CLEANED"
